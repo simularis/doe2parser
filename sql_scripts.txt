@@ -1,0 +1,198 @@
+DROP VIEW IF EXISTS known_cmd;
+CREATE VIEW known_cmd AS
+SELECT DISTINCT cmd FROM command_list
+;
+
+DROP VIEW IF EXISTS arg_extended;
+create view arg_extended as
+SELECT
+"command_list"."i", "command_list"."cmd", "command_list"."uname",
+"arg_list"."j", "arg_list"."key", "arg_list"."val"
+FROM command_list
+JOIN arg_list
+ON arg_list.i = command_list.i
+;
+
+DROP VIEW IF EXISTS command_extended;
+CREATE VIEW command_extended AS
+SELECT cl.i, cl.cmd, cl.uname, al.val AS "type"
+FROM command_list cl
+LEFT JOIN arg_list al
+ON al.i = cl.i
+AND al."key" == 'TYPE'
+;
+
+DROP VIEW IF EXISTS detect_links;
+CREATE VIEW detect_links AS
+SELECT
+a."i" AS i1,
+a."cmd" AS cmd1,
+a."uname" AS uname1,
+a."j",
+a."key",
+a."val",
+b."i" AS i2,
+b."cmd" AS cmd2,
+b."uname" AS uname2
+FROM arg_extended a
+JOIN command_list b
+ON a.val LIKE '%'||b.uname||'%'
+;
+
+DROP VIEW IF EXISTS arg_extended_refg;
+CREATE VIEW arg_extended_refg AS
+SELECT * FROM arg_extended
+WHERE cmd IN
+('SUCTION-GROUP',
+'REFG-SYSTEM',
+'REFG-CIRCUIT',
+'CONDENSER',
+'COMPRESSOR',
+'EQUIP-CTRL',
+'LOAD-MANAGEMENT',
+'SUBCOOLER',
+'DESUPERHEATER',
+'SYSTEM',
+'ZONE',
+'PROCESS-LOAD')
+;
+
+DROP TABLE IF EXISTS refg_network_filter;
+CREATE TABLE refg_network_filter  (
+"cmd" TEXT,
+"key" TEXT
+);
+INSERT INTO refg_network_filter VALUES
+('SUCTION-GROUP','DISCHARGE-CIRCUIT'),
+('SUCTION-GROUP','EQUIP-CTRL'),
+('SUCTION-GROUP','HGB-SUCTION'),
+('SUCTION-GROUP','HGB-LIQUID'),
+('REFG-SYSTEM','EQUIP-CTRL'),
+('REFG-CIRCUIT','REFG-SYSTEM'),
+('REFG-CIRCUIT','SUCTION-GROUP'),
+('REFG-CIRCUIT','SUBCOOLER'),
+('REFG-CIRCUIT','DESUPERHEATER'),
+('CONDENSER','REFG-SYSTEM'),
+('CONDENSER','LIQUID-CIRCUIT'),
+('CONDENSER','SUCTION-CIRCUIT'),
+('COMPRESSOR','SUCTION-GROUP'),
+('COMPRESSOR','LIKE'),
+('EQUIP-CTRL','REFG-SYSTEM'),
+('EQUIP-CTRL','CONDENSERS-1'),
+('EQUIP-CTRL','CONDENSERS-2'),
+('EQUIP-CTRL','CONDENSERS-3'),
+('EQUIP-CTRL','CONDENSERS-4'),
+('EQUIP-CTRL','CONDENSERS-5'),
+('EQUIP-CTRL','SUCTION-GROUP'),
+('EQUIP-CTRL','COMPRESSORS-1'),
+('EQUIP-CTRL','COMPRESSORS-2'),
+('EQUIP-CTRL','COMPRESSORS-3'),
+('EQUIP-CTRL','COMPRESSORS-4'),
+('EQUIP-CTRL','COMPRESSORS-5'),
+('LOAD-MANAGEMENT','EQUIP-CTRLS-1'),
+('LOAD-MANAGEMENT','EQUIP-CTRLS-2'),
+('LOAD-MANAGEMENT','EQUIP-CTRLS-3'),
+('LOAD-MANAGEMENT','EQUIP-CTRLS-4'),
+('LOAD-MANAGEMENT','EQUIP-CTRLS-5'),
+('SUBCOOLER','REFG-SYSTEM'),
+('SUBCOOLER','LIQUID-CIRCUIT'),
+('SUBCOOLER','SUCTION-CIRCUIT'),
+('SUBCOOLER','SUBCOOL-CIRCUIT'),
+('DESUPERHEATER','SUCTION-GROUP'),
+('DESUPERHEATER','DESUPER-CIRCUIT'),
+('DESUPERHEATER','SUCTION-CIRCUIT'),
+('DESUPERHEATER','LIQUID-CIRCUIT'),
+('SYSTEM','CONTROL-ZONE'),
+('SYSTEM','REFG-LIQUID-CKT'),
+('SYSTEM','REFG-SUCTION-CKT'),
+('SYSTEM','REFG-HTREC-CKT'),
+('SYSTEM','HTREC-HX '),
+('ZONE','SPACE'),
+('PROCESS-LOAD','CIRCULATION-LOOP'),
+('PROCESS-LOAD','LIQUID-CIRCUIT'),
+('PROCESS-LOAD','SUCTION-CIRCUIT'),
+('PROCESS-LOAD','PROCESS-ZONE')
+;
+
+DROP VIEW IF EXISTS arg_extended_refg_network;
+CREATE VIEW arg_extended_refg_network AS
+SELECT arg_extended.*
+FROM arg_extended
+JOIN refg_network_filter
+ON refg_network_filter."cmd" = arg_extended."cmd"
+AND refg_network_filter."key" = arg_extended."key"
+;
+
+drop table if exists cmd2shape;
+create table cmd2shape (
+  "cmd" TEXT,
+  "type" TEXT,
+  "shape" TEXT,
+  "color" TEXT
+);
+insert into cmd2shape VALUES
+('SUCTION-GROUP',NULL,'tripleoctagon','aliceblue'),
+('REFG-SYSTEM',NULL,'doublecircle','antiquewhite'),
+('REFG-CIRCUIT','DISCHARGE','doubleoctagon','/set312/1'),
+('REFG-CIRCUIT','LIQUID','doubleoctagon','/set312/2'),
+('REFG-CIRCUIT','SUCTION','doubleoctagon','/set312/3'),
+('CONDENSER','AIR-COOLED','invtrapezium','/pastel19/1'),
+('CONDENSER','EVAPORATIVE','invtrapezium','/pastel19/2'),
+('CONDENSER','CASCADED','invtrapezium','/pastel19/3'),
+('COMPRESSOR',NULL,'box','azure'),
+('EQUIP-CTRL',NULL,'diamond','beige'),
+('LOAD-MANAGEMENT',NULL,'note','bisque'),
+('SUBCOOLER',NULL,'parallelogram','blanchedalmond'),
+('DESUPERHEATER',NULL,'invhouse','palegreen'),
+('SYSTEM',NULL,'octagon','seashell'),
+('ZONE','CONDITIONED','pentagon','lightgrey'),
+('ZONE','UNCONDITIONED','pentagon','white'),
+('PROCESS-LOAD',NULL,'ellipse','burlywood'),
+('SPACE',NULL,'house','lemonchiffon')
+;
+
+drop view if EXISTS refg_nodes;
+create view refg_nodes as
+select distinct cl.cmd, cl.uname, cl."type", shape, color
+from command_extended cl
+join cmd2shape
+on cmd2shape.cmd = cl.cmd
+and cmd2shape."type" ISNULL
+  OR cmd2shape."type" = cl."type"
+;
+
+drop view if exists detect_links_refg;
+create view detect_links_refg as
+select
+a."i" as i1,
+a."cmd" as cmd1,
+a."uname" as uname1,
+a."j",
+a."key",
+a."val",
+b."i" as i2,
+b."cmd" as cmd2,
+b."uname" as uname2
+from arg_extended_refg a
+join command_list b
+on a.val LIKE '%'||b.uname||'%'
+;
+
+drop view if exists detect_refg_link_classes;
+create view detect_refg_link_classes as
+select distinct
+cmd1, key, cmd2
+from detect_links_refg
+order by cmd1, key
+;
+
+drop view if exists unknown_refg_link_classes;
+create view unknown_refg_link_classes as
+select
+a.*,
+b.*
+from detect_refg_link_classes a
+left join refg_network_filter b
+on b.cmd = a.cmd1 and b.key = a.key
+;
+
